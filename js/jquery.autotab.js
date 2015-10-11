@@ -613,51 +613,59 @@
             settings.focusChange = null;
 
             var hasValue = document.selection && document.selection.createRange ? true : (keyCode > 0);
-
             keyChar = filterValue(this, keyChar, defaults);
-
             if (hasValue && (keyChar === null || keyChar === '')) {
                 return false;
             }
+            var autoNumeric = jQuery(this).data('autoNumeric');
+            if (!autoNumeric) {
+                // Many, many thanks to Tim Down for this solution: http://stackoverflow.com/a/3923320/94656
+                if (hasValue && (this.value.length <= this.maxLength)) {
+                    var selection = getSelection(this);
+                    // Text is fully selected, so it needs to be replaced
+                    if (selection.start === 0 && selection.end == this.value.length && this.value.length) {
+                        this.value = keyChar;
+                        setSettings(this, { changed: (this.value != defaults.originalValue) });
+                    }
+                    else {
+                        if (this.value.length == this.maxLength && selection.start === selection.end) {
+                            defaults.arrowKey = false;
+                            $(this).trigger('autotab-next', defaults);
+                            return false;
+                        }
+                        this.value = this.value.slice(0, selection.start) + keyChar + this.value.slice(selection.end);
+                        setSettings(this, { changed: (this.value != defaults.originalValue) });
+                    }
+                    // Prevents the cursor position from being set to the end of the text box
+                    // This is called even if the text is fully selected and replaced due to an unexpected behavior in IE6 and up (#32)
+                    if (this.value.length != defaults.maxlength) {
+                        selection.start++;
 
-            // Many, many thanks to Tim Down for this solution: http://stackoverflow.com/a/3923320/94656
-            if (hasValue && (this.value.length <= this.maxLength)) {
-                var selection = getSelection(this);
-
-                // Text is fully selected, so it needs to be replaced
-                if (selection.start === 0 && selection.end == this.value.length) {
-                    this.value = keyChar;
-                    setSettings(this, { changed: (this.value != defaults.originalValue) });
+                        if (selection.selectionType == 1) {
+                            this.selectionStart = this.selectionEnd = selection.start;
+                        }
+                        else if (selection.selectionType == 2) {
+                            var range = this.createTextRange();
+                            range.collapse(true);
+                            range.moveEnd('character', selection.start);
+                            range.moveStart('character', selection.start);
+                            range.select();
+                        }
+                    }
                 }
-                else {
-                    if (this.value.length == this.maxLength && selection.start === selection.end) {
+            } else {
+                //if this keypress (not handled here) is valid && will max the length, trigger next in a few ms [after autonumeric filters]
+                if (keyChar != '') {
+                    if ((this.value.length + 1) == this.maxLength) {
                         defaults.arrowKey = false;
-                        $(this).trigger('autotab-next', defaults);
-                        return false;
-                    }
-
-                    this.value = this.value.slice(0, selection.start) + keyChar + this.value.slice(selection.end);
-                    setSettings(this, { changed: (this.value != defaults.originalValue) });
-                }
-
-                // Prevents the cursor position from being set to the end of the text box
-                // This is called even if the text is fully selected and replaced due to an unexpected behavior in IE6 and up (#32)
-                if (this.value.length != defaults.maxlength) {
-                    selection.start++;
-
-                    if (selection.selectionType == 1) {
-                        this.selectionStart = this.selectionEnd = selection.start;
-                    }
-                    else if (selection.selectionType == 2) {
-                        var range = this.createTextRange();
-                        range.collapse(true);
-                        range.moveEnd('character', selection.start);
-                        range.moveStart('character', selection.start);
-                        range.select();
+                        var $this = $(this);
+                        window.setTimeout(function () {
+                            $this.trigger('autotab-next', defaults);
+                        }, 100);
+                        return;
                     }
                 }
             }
-
 
             if (this.value.length == defaults.maxlength) {
                 defaults.arrowKey = false;
